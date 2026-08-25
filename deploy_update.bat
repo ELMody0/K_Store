@@ -3,14 +3,14 @@ chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
 REM ============================================================
-REM  K_Store auto-deploy script
+REM  K_Store auto-deploy script  (APK on public Supabase Storage)
 REM  Usage:  deploy_update.bat 1.0.2
-REM  (تعدّل رسالة التحديث يدوياً في الأسفل قبل التشغيل)
+REM  (عدّل رسالة التحديث يدوياً في الأسفل قبل التشغيل)
 REM ============================================================
 
 REM --- رسالة التحديث (عدّلها يدوياً كل مرة) ---
 set "UPDATE_TITLE=تحديث تجريبي 1.0.2"
-set "UPDATE_BODY=تم إصلاح مشاكل التحميل و تحسين سرعة فتح التطبيق."
+set "UPDATE_BODY=تم إصلاح مشاكل التحميل وتحسين سرعة فتح التطبيق."
 
 REM --- load .env ---
 for /f "usebackq tokens=1,* delims==" %%A in (".env") do (
@@ -43,28 +43,20 @@ if not exist "%APK_PATH%" (
     exit /b 1
 )
 
-echo [2/5] Creating GitHub release %TAG%...
-curl -s -X POST -H "Authorization: Bearer %GITHUB_TOKEN%" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/%GITHUB_OWNER%/%GITHUB_REPO%/releases" -d "{\"tag_name\":\"%TAG%\"}" > release.json
+REM رابط التحميل العام من Supabase Storage (bucket is public)
+set "APK_URL=%SUPABASE_URL%/storage/v1/object/public/%SUPABASE_BUCKET%/app-release.apk"
 
-for /f "tokens=*" %%L in ('powershell -NoProfile -Command "(Get-Content release.json | ConvertFrom-Json).id"') do set "REL_ID=%%L"
-echo     Release ID: %REL_ID%
-
-curl -s -X POST -H "Authorization: Bearer %GITHUB_TOKEN%" -H "Content-Type: application/vnd.android.package-archive" --data-binary "@%APK_PATH%" "https://uploads.github.com/repos/%GITHUB_OWNER%/%GITHUB_REPO%/releases/%REL_ID%/assets?name=app-release.apk"
-
-set "APK_URL=https://github.com/%GITHUB_OWNER%/%GITHUB_REPO%/releases/download/%TAG%/app-release.apk"
+echo [2/5] Uploading APK to Supabase Storage (public)...
+curl -s -X POST "%SUPABASE_URL%/storage/v1/object/%SUPABASE_BUCKET%/app-release.apk" ^
+  -H "Authorization: Bearer %SUPABASE_SERVICE_KEY%" ^
+  -H "Content-Type: application/vnd.android.package-archive" ^
+  -H "x-upsert: true" ^
+  --data-binary "@%APK_PATH%"
 
 echo [3/5] Publishing update message to Supabase app_updates...
-REM نجهّز JSON عشان نبعته لـ Supabase REST (إدراج صف في جدول app_updates)
-(
-echo [
-echo   {
-echo     "title": "%UPDATE_TITLE%",
-echo     "body": "%UPDATE_BODY%",
-echo     "version": "%NEW_VER%",
-echo     "apk_url": "%APK_URL%"
-echo   }
-echo ]
-) > update_row.json
+REM نكتب JSON بـ UTF-8 صحيح عبر PowerShell
+powershell -NoProfile -Command ^
+  "$j = @{title='%UPDATE_TITLE%'; body='%UPDATE_BODY%'; version='%NEW_VER%'; apk_url='%APK_URL%'} | ConvertTo-Json -Compress; [System.IO.File]::WriteAllText('update_row.json', $j, [System.Text.Encoding]::UTF8)"
 
 curl -s -X POST "%SUPABASE_URL%/rest/v1/app_updates" ^
   -H "Authorization: Bearer %SUPABASE_SERVICE_KEY%" ^
@@ -74,16 +66,16 @@ curl -s -X POST "%SUPABASE_URL%/rest/v1/app_updates" ^
   --data-binary "@update_row.json"
 
 echo [4/5] Updating update.json on Supabase Storage...
-echo { > update.json
-echo   "version": "%NEW_VER%", >> update.json
-echo   "apk_url": "%APK_URL%", >> update.json
-echo   "title": "K Store %TAG%", >> update.json
-echo   "notes": "%UPDATE_BODY%" >> update.json
-echo } >> update.json
+powershell -NoProfile -Command ^
+  "$j = @{version='%NEW_VER%'; apk_url='%APK_URL%'; title='K Store %TAG%'; notes='%UPDATE_BODY%'} | ConvertTo-Json -Compress; [System.IO.File]::WriteAllText('update.json', $j, [System.Text.Encoding]::UTF8)"
 
 curl -s -X POST "%SUPABASE_URL%/storage/v1/object/%SUPABASE_BUCKET%/update.json" -H "Authorization: Bearer %SUPABASE_SERVICE_KEY%" -H "Content-Type: application/json" -H "x-upsert: true" --data-binary "@update.json"
 
-echo [5/5] Committing code...
+echo [5/5] Bumping pubspec version + committing code...
+REM نحدّث رقم الإصدار في pubspec.yaml عشان الفحص يقارن صح
+powershell -NoProfile -Command ^
+  "$f='pubspec.yaml'; $c=[System.IO.File]::ReadAllText($f, [System.Text.Encoding]::UTF8); $c=$c -replace 'version:\s*\d+\.\d+\.\d+\+\d+', 'version: %NEW_VER%+1'; [System.IO.File]::WriteAllText($f, $c, [System.Text.Encoding]::UTF8)"
+
 git add .
 git -c user.name="%GITHUB_OWNER%" -c user.email="%GITHUB_OWNER%@users.noreply.github.com" commit -m "Release %TAG%"
 git push origin main
