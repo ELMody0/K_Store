@@ -6,7 +6,6 @@ import 'package:animate_do/animate_do.dart';
 import 'package:k_store/core/widgets/wavy_background.dart';
 import 'package:k_store/core/theme/app_theme.dart';
 import 'package:k_store/core/services/update_checker.dart';
-import 'package:k_store/core/services/app_update_service.dart';
 import 'package:k_store/core/services/update_launcher.dart';
 
 class AppUpdatesPage extends StatefulWidget {
@@ -20,8 +19,6 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   // نستخدم خدمة الفحص المركزية (اتعملت مرة واحدة في SplashPage)
-  SupabaseUpdateInfo? get _releaseInfo => UpdateChecker.instance.info;
-  bool get _updateAvailable => UpdateChecker.instance.hasUpdate;
   bool _checkingUpdate = false;
 
   bool _isOwner = false;
@@ -115,19 +112,6 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
     } finally {
       if (mounted) setState(() => _checkingUpdate = false);
     }
-  }
-
-  Future<void> _openUpdate() async {
-    final url = _releaseInfo?.apkUrl;
-    if (url == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: const Text('رابط التحميل غير متوفر حالياً'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-        );
-      }
-      return;
-    }
-    await launchUpdateUrl(url);
   }
 
   Future<void> _deleteUpdate(String id) async {
@@ -469,102 +453,17 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
       child: ListView.builder(
         physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
         padding: const EdgeInsets.fromLTRB(20, 115, 20, 170),
-        itemCount: _updates.length + (_updateAvailable ? 1 : 0),
+        itemCount: _updates.length,
         itemBuilder: (context, i) {
-          // البانر في أول عنصر لو فيه تحديث متاح
-          if (_updateAvailable && i == 0) {
-            return FadeInDown(
-              duration: const Duration(milliseconds: 500),
-              child: _buildUpdateBanner(isDark: isDark, textColor: textColor),
-            );
-          }
-          final realIndex = i - (_updateAvailable ? 1 : 0);
-          final u = _updates[realIndex];
-          final isLatest = realIndex == 0;
+          final u = _updates[i];
+          final isLatest = i == 0;
           return FadeInUp(
-            delay: Duration(milliseconds: realIndex * 80),
+            delay: Duration(milliseconds: i * 80),
             duration: const Duration(milliseconds: 550),
             from: 20,
             child: _buildUpdateCard(u, isLatest: isLatest, isDark: isDark, textColor: textColor),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildUpdateBanner({required bool isDark, required Color textColor}) {
-    final tag = _releaseInfo?.version ?? '';
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-          colors: isDark
-              ? [const Color(0xFF1E2024), const Color(0xFF101113)]
-              : [Colors.black, const Color(0xFF232323)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _openUpdate,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.system_update_alt_rounded, color: Colors.white, size: 24),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'تحديث جديد متاح',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
-                          ),
-                          if (tag.isNotEmpty) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                tag,
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'اضغط هنا لتحميل أحدث إصدار',
-                        style: TextStyle(fontSize: 12.5, color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white54, size: 16),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
