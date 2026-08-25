@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Professional Splash Screen with Red Theme -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Red Background -->
+    <item>
+        <color android:color="#C50022"/>
+    </item>
+
+    <!-- Centered Logo -->
+    <item
+        android:gravity="center"
+        android:width="120dp"
+        android:height="120dp">
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFF"/>
+            <size
+                android:width="120dp"
+                android:height="120dp"/>
+        </shape>
+    </item>
+
+    <!-- Inner Red Circle -->
+    <item
+        android:gravity="center"
+        android:width="100dp"
+        android:height="100dp">
+        <shape android:shape="oval">
+            <solid android:color="#C50022"/>
+            <size
+                android:width="100dp"
+                android:height="100dp"/>
+        </shape>
+    </item>
+</layer-list>

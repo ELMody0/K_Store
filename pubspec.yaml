@@ -1,0 +1,51 @@
+name: k_store
+description: "K Shop Application"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  supabase_flutter: ^2.17.2
+  firebase_core: ^3.8.1
+  firebase_messaging: ^15.1.5
+  flutter_local_notifications: ^17.2.4
+  animate_do: ^5.1.0
+  google_fonts: ^8.2.1
+  image_picker: ^1.1.2
+  cloudinary_public: ^0.23.1
+  record: ^7.1.1
+  audioplayers: ^6.0.0
+  path_provider: ^2.1.2
+  permission_handler: ^11.3.1
+  shared_preferences: ^2.5.5
+  cupertino_icons: ^1.0.8
+  cached_network_image: ^3.4.1
+  upgrader: ^13.7.0
+  package_info_plus: ^10.2.1
+  url_launcher: ^6.3.2
+  http: ^1.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.14.4
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/logo.png"
+  min_sdk_android: 21
