@@ -3,11 +3,11 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:k_store/core/widgets/wavy_background.dart';
 import 'package:k_store/core/theme/app_theme.dart';
 import 'package:k_store/core/services/update_checker.dart';
 import 'package:k_store/core/services/app_update_service.dart';
+import 'package:k_store/core/services/update_launcher.dart';
 
 class AppUpdatesPage extends StatefulWidget {
   const AppUpdatesPage({super.key});
@@ -127,14 +127,7 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
       }
       return;
     }
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: const Text('تعذّر فتح رابط التحديث'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-      );
-    }
+    await launchUpdateUrl(url);
   }
 
   Future<void> _deleteUpdate(String id) async {

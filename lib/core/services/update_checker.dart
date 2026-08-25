@@ -1,5 +1,5 @@
-import 'package:url_launcher/url_launcher.dart';
 import 'app_update_service.dart';
+import 'update_launcher.dart';
 
 /// خدمة مركزية لفحص تحديثات التطبيق.
 ///
@@ -31,13 +31,10 @@ class UpdateChecker {
 
   bool get hasUpdate => info?.isNewer == true;
 
-  /// بيفتح رابط التحميل في المتصفح/مدير الملفات.
+  /// بيفتح رابط التحميل (صفحة الـ release) في المتصفح بأمان.
   Future<void> openUpdate() async {
     final url = info?.apkUrl;
     if (url == null) return;
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    await launchUpdateUrl(url);
   }
 }
