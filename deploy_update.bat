@@ -47,6 +47,12 @@ REM رابط التحميل من GitHub Releases (repo must be Public for direct
 set "APK_URL=https://github.com/%GITHUB_OWNER%/%GITHUB_REPO%/releases/download/%TAG%/app-release.apk"
 
 echo [2/5] Creating GitHub release %TAG%...
+REM لو الـ release موجود من قبل، نمسحه عشان نعيد إنشاؤه نظيف
+curl -s -o /dev/null -w "%%{http_code}" -H "Authorization: Bearer %GITHUB_TOKEN%" "https://api.github.com/repos/%GITHUB_OWNER%/%GITHUB_REPO%/releases/tags/%TAG%" > existing_rel.json
+set /p EXISTING_ID=<existing_rel.json
+REM (نسيب EXISTING_ID كـ JSON مؤقت - هنمسحه لو موجود)
+powershell -NoProfile -Command "$j=Get-Content existing_rel.json -Raw; if($j -match '\"id\":\s*(\d+)'){ $id=$matches[1]; Invoke-RestMethod -Method Delete -Uri 'https://api.github.com/repos/%GITHUB_OWNER%/%GITHUB_REPO%/releases/'+$id -Headers @{'Authorization'='Bearer %GITHUB_TOKEN%'} | Out-Null; Write-Host ('Deleted existing release '+ $id) }"
+
 curl -s -X POST -H "Authorization: Bearer %GITHUB_TOKEN%" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/%GITHUB_OWNER%/%GITHUB_REPO%/releases" -d "{\"tag_name\":\"%TAG%\"}" > release.json
 
 for /f "tokens=*" %%L in ('powershell -NoProfile -Command "(Get-Content release.json | ConvertFrom-Json).id"') do set "REL_ID=%%L"
@@ -56,6 +62,13 @@ curl -s -X POST -H "Authorization: Bearer %GITHUB_TOKEN%" -H "Content-Type: appl
 
 echo [3/5] Publishing update message to Supabase app_updates...
 powershell -NoProfile -ExecutionPolicy Bypass -File build_json.ps1 -title "%UPDATE_TITLE%" -body "%UPDATE_BODY%" -version "%NEW_VER%" -apkUrl "%APK_URL%"
+REM نتأكد إن الملف اتكتب قبل ما نبعته
+if not exist "update_row.json" (
+  echo [ERROR] update_row.json not created.
+  pause
+  exit /b 1
+)
+timeout /t 1 >nul
 
 curl -s -X POST "%SUPABASE_URL%/rest/v1/app_updates" ^
   -H "Authorization: Bearer %SUPABASE_SERVICE_KEY%" ^
