@@ -6,6 +6,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:k_store/core/widgets/wavy_background.dart';
 import 'package:k_store/core/theme/app_theme.dart';
+import 'package:k_store/core/services/update_checker.dart';
 import 'package:k_store/core/services/app_update_service.dart';
 
 class AppUpdatesPage extends StatefulWidget {
@@ -18,16 +19,10 @@ class AppUpdatesPage extends StatefulWidget {
 class _AppUpdatesPageState extends State<AppUpdatesPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  // ===== نظام التحديث من Supabase Storage =====
-  // لازم تعمل bucket عام اسمه "updates" على Supabase Storage
-  // وتحط فيه ملف update.json + ملف APK (للتفاصيل انظر update.json structure)
-  final AppUpdateService _updater = AppUpdateService(
-    bucket: 'updates',
-    jsonPath: 'update.json',
-  );
-  SupabaseUpdateInfo? _releaseInfo;
+  // نستخدم خدمة الفحص المركزية (اتعملت مرة واحدة في SplashPage)
+  SupabaseUpdateInfo? get _releaseInfo => UpdateChecker.instance.info;
+  bool get _updateAvailable => UpdateChecker.instance.hasUpdate;
   bool _checkingUpdate = false;
-  bool _updateAvailable = false;
 
   bool _isOwner = false;
   List<Map<String, dynamic>> _updates = [];
@@ -46,6 +41,7 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
     _load();
     _subscribeStream();
     _checkRole();
+    // لو الفحص لسه ما اتعملش (المستخدم فتح الصفحة مباشرة من غير Splash) نفحص
     _checkForAppUpdate();
   }
 
@@ -109,16 +105,15 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
 
   Future<void> _checkForAppUpdate() async {
     if (_checkingUpdate) return;
+    // لو الفحص اتعمل من SplashPage خلاص، نعكس النتيجة بس
+    if (UpdateChecker.instance.info != null) {
+      if (mounted) setState(() {});
+      return;
+    }
     setState(() => _checkingUpdate = true);
     try {
-      final info = await _updater.checkForUpdate();
-      if (!mounted) return;
-      setState(() {
-        _releaseInfo = info;
-        _updateAvailable = info?.isNewer == true;
-        _checkingUpdate = false;
-      });
-    } catch (_) {
+      await UpdateChecker.instance.check();
+    } finally {
       if (mounted) setState(() => _checkingUpdate = false);
     }
   }

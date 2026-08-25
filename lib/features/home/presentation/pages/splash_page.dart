@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:k_store/features/auth/presentation/pages/auth_page.dart';
+import 'package:k_store/core/services/update_checker.dart';
+import 'package:k_store/core/services/app_update_service.dart';
 import 'main_page.dart';
 
 class SplashPage extends StatefulWidget {
@@ -20,6 +22,11 @@ class _SplashPageState extends State<SplashPage> {
 
   void _navigateToNext() async {
     await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+
+    // فحص التحديث التلقائي عند فتح التطبيق
+    final update = await UpdateChecker.instance.check();
+
     if (!mounted) return;
     final supabase = Supabase.instance.client;
     final session = supabase.auth.currentSession;
@@ -56,7 +63,89 @@ class _SplashPageState extends State<SplashPage> {
           transitionDuration: const Duration(milliseconds: 1000),
         ),
       );
+
+      // بعد ما نعدّي للشاشة الجديدة، لو فيه تحديث نعرض Dialog للمستخدم
+      if (update?.isNewer == true) {
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (mounted) _showUpdateDialog(update!);
+        });
+      }
     }
+  }
+
+  void _showUpdateDialog(SupabaseUpdateInfo update) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF16171A) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.system_update_alt_rounded, color: Colors.white, size: 28),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'تحديث جديد متاح',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'الإصدار ${update.version} جاهز للتحميل',
+              style: TextStyle(fontSize: 13, color: isDark ? Colors.white70 : Colors.black54),
+              textAlign: TextAlign.center,
+            ),
+            if (update.notes != null && update.notes!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                update.notes!,
+                style: TextStyle(fontSize: 12.5, color: isDark ? Colors.white54 : Colors.black45, height: 1.5),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('لاحقاً', style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      UpdateChecker.instance.openUpdate();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: const Text('تحديث الآن', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
