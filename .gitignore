@@ -58,3 +58,7 @@ deploy_env.bat
 # Widget Preview related
 .widget_preview/
 supabase/.temp/
+
+# Deploy temp files
+deploy_log.txt
+release.json
