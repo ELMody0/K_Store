@@ -68,6 +68,7 @@ echo ]
 
 curl -s -X POST "%SUPABASE_URL%/rest/v1/app_updates" ^
   -H "Authorization: Bearer %SUPABASE_SERVICE_KEY%" ^
+  -H "apikey: %SUPABASE_SERVICE_KEY%" ^
   -H "Content-Type: application/json" ^
   -H "Prefer: return=minimal" ^
   --data-binary "@update_row.json"

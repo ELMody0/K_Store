@@ -62,3 +62,8 @@ supabase/.temp/
 # Deploy temp files
 deploy_log.txt
 release.json
+
+# Deploy temp files
+deploy_log.txt
+release.json
+update_row.json
