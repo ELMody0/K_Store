@@ -33,7 +33,6 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
   StreamSubscription<List<Map<String, dynamic>>>? _sub;
   Timer? _errorTimer;
   String? _expandedId;
-  bool _refreshing = false;
 
   @override
   void initState() {
@@ -135,36 +134,6 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: const Text('تعذّر فتح رابط التحديث'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
       );
-    }
-  }
-
-  Future<void> _refreshCard() async {
-    if (_refreshing) return;
-    setState(() => _refreshing = true);
-    try {
-      final res = await _supabase.from('app_updates').select().order('created_at', ascending: false);
-      if (!mounted) return;
-      setState(() {
-        _updates = List<Map<String, dynamic>>.from(res as List);
-        _hasData = true;
-        _error = null;
-        _showError = false;
-        if (_updates.isNotEmpty) _expandedId ??= _updates.first['id']?.toString();
-      });
-    } catch (e) {
-      if (!mounted) return;
-      if (_hasData) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: const Text('تعذّر التحديث'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-        );
-        return;
-      }
-      setState(() {
-        _error = e;
-        _loading = false;
-      });
-    } finally {
-      if (mounted) setState(() => _refreshing = false);
     }
   }
 
@@ -403,22 +372,7 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
                 onPressed: () => Navigator.pop(context),
               )
             : null,
-        actions: [
-          _refreshing
-              ? const Padding(
-                  padding: EdgeInsets.only(left: 12, right: 12),
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2.2),
-                  ),
-                )
-              : IconButton(
-                  icon: const Icon(Icons.refresh_rounded, size: 22),
-                  tooltip: 'تحديث البيانات',
-                  onPressed: () => _refreshCard(),
-                ),
-        ],
+        actions: const [],
       ),
       body: WavyBackground(child: _buildBody()),
       floatingActionButton: _isOwner
