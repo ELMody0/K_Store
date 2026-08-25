@@ -663,6 +663,20 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
                         ],
                       ),
                     ),
+                  // شارة رقم الإصدار
+                  if ((u['version'] ?? '').toString().isNotEmpty)
+                    Container(
+                      margin: const EdgeInsetsDirectional.only(start: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFF1A1A1A),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'v${u['version']}',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.white),
+                      ),
+                    ),
                   // أزرار المالك
                   if (_isOwner) ...[
                     const SizedBox(width: 6),
@@ -714,6 +728,31 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
                   label: Text(
                     expanded ? 'إظهار أقل' : 'قراءة المزيد',
                     style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+
+            // زر "حدّث التطبيق" داخل الكارت (لو الرسالة ليها إصدار)
+            if ((u['version'] ?? '').toString().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      final url = u['apk_url']?.toString() ??
+                          UpdateChecker.instance.info?.apkUrl;
+                      if (url != null) launchUpdateUrl(url);
+                    },
+                    icon: const Icon(Icons.system_update_alt_rounded, size: 18),
+                    label: const Text('حدّث التطبيق'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                      foregroundColor: isDark ? Colors.black : Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
                   ),
                 ),
               ),
