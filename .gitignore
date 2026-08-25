@@ -51,5 +51,9 @@ ios/Runner/GoogleService-Info.plist
 android/**/key.properties
 **/secrets*.dart
 
+# Local deploy secrets (GitHub token + Supabase service key)
+.env
+deploy_env.bat
+
 # Widget Preview related
 .widget_preview/
