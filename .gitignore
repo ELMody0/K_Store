@@ -67,3 +67,10 @@ release.json
 deploy_log.txt
 release.json
 update_row.json
+
+# Deploy temp files
+deploy_log.txt
+release.json
+update_row.json
+update.json
+build_json.ps1

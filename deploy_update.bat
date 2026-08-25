@@ -55,9 +55,7 @@ echo     Release ID: %REL_ID%
 curl -s -X POST -H "Authorization: Bearer %GITHUB_TOKEN%" -H "Content-Type: application/vnd.android.package-archive" --data-binary "@%APK_PATH%" "https://uploads.github.com/repos/%GITHUB_OWNER%/%GITHUB_REPO%/releases/%REL_ID%/assets?name=app-release.apk"
 
 echo [3/5] Publishing update message to Supabase app_updates...
-REM نكتب JSON بـ UTF-8 صحيح عبر PowerShell (ملف منفصل)
-powershell -NoProfile -Command ^
-  "$title='%UPDATE_TITLE%'; $body='%UPDATE_BODY%'; $ver='%NEW_VER%'; $url='%APK_URL%'; $o=@{title=$title; body=$body; version=$ver; apk_url=$url}; [System.IO.File]::WriteAllText('update_row.json', ($o | ConvertTo-Json -Compress), [System.Text.Encoding]::UTF8)"
+powershell -NoProfile -ExecutionPolicy Bypass -File build_json.ps1 -title "%UPDATE_TITLE%" -body "%UPDATE_BODY%" -version "%NEW_VER%" -apkUrl "%APK_URL%"
 
 curl -s -X POST "%SUPABASE_URL%/rest/v1/app_updates" ^
   -H "Authorization: Bearer %SUPABASE_SERVICE_KEY%" ^
@@ -67,10 +65,7 @@ curl -s -X POST "%SUPABASE_URL%/rest/v1/app_updates" ^
   --data-binary "@update_row.json"
 
 echo [4/5] Updating update.json on Supabase Storage...
-powershell -NoProfile -Command ^
-  "$o=@{version='%NEW_VER%'; apk_url='%APK_URL%'; title='K Store %TAG%'; notes='%UPDATE_BODY%'}; [System.IO.File]::WriteAllText('update.json', ($o | ConvertTo-Json -Compress), [System.Text.Encoding]::UTF8)"
-
-curl -s -X POST "%SUPABASE_URL%/storage/v1/object/%SUPABASE_BUCKET%/update.json" -H "Authorization: Bearer %SUPABASE_SERVICE_KEY%" -H "Content-Type: application/json" -H "x-upsert: true" --data-binary "@update.json"
+REM (update.json already written by build_json.ps1 above)
 
 echo [5/5] Bumping pubspec version + committing code...
 powershell -NoProfile -Command ^
