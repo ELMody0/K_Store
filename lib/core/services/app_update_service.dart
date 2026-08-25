@@ -46,11 +46,10 @@ class AppUpdateService {
       final current = await _currentVersion();
       final isNewer = _isNewer(remoteVersion, current);
 
-      // نبني رابط تحميل الـ APK من الـ Storage (رابط عام)
-      String? apkUrl;
-      final apkPath = map['apk_path'] as String?;
-      if (apkPath != null && apkPath.isNotEmpty) {
-        apkUrl = _supabase.storage.from(bucket).getPublicUrl(apkPath);
+      // رابط التحميل: إما apk_url مباشر، أو نبني من مسار داخل الـ bucket
+      String? apkUrl = map['apk_url'] as String?;
+      if ((apkUrl == null || apkUrl.isEmpty) && map['apk_path'] != null) {
+        apkUrl = _supabase.storage.from(bucket).getPublicUrl(map['apk_path'] as String);
       }
 
       return SupabaseUpdateInfo(
