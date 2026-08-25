@@ -18,13 +18,14 @@ class AppUpdatesPage extends StatefulWidget {
 class _AppUpdatesPageState extends State<AppUpdatesPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  // ===== نظام التحديث من GitHub Releases =====
-  // بدّل بالـ owner/repo بتوعك على GitHub
+  // ===== نظام التحديث من Supabase Storage =====
+  // لازم تعمل bucket عام اسمه "updates" على Supabase Storage
+  // وتحط فيه ملف update.json + ملف APK (للتفاصيل انظر update.json structure)
   final AppUpdateService _updater = AppUpdateService(
-    owner: 'ELMody0',
-    repo: 'K_Store',
+    bucket: 'updates',
+    jsonPath: 'update.json',
   );
-  GitHubReleaseInfo? _releaseInfo;
+  SupabaseUpdateInfo? _releaseInfo;
   bool _checkingUpdate = false;
   bool _updateAvailable = false;
 
@@ -123,8 +124,15 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
   }
 
   Future<void> _openUpdate() async {
-    final url = _releaseInfo?.apkUrl ?? _releaseInfo?.htmlUrl;
-    if (url == null) return;
+    final url = _releaseInfo?.apkUrl;
+    if (url == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: const Text('رابط التحميل غير متوفر حالياً'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+        );
+      }
+      return;
+    }
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -543,7 +551,7 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
   }
 
   Widget _buildUpdateBanner({required bool isDark, required Color textColor}) {
-    final tag = _releaseInfo?.tagName ?? '';
+    final tag = _releaseInfo?.version ?? '';
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(

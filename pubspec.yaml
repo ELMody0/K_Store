@@ -31,8 +31,6 @@ dependencies:
   upgrader: ^13.7.0
   package_info_plus: ^10.2.1
   url_launcher: ^6.3.2
-  http: ^1.6.0
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

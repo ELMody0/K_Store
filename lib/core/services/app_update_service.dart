@@ -1,81 +1,64 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// خدمة فحص تحديثات التطبيق من GitHub Releases.
+/// خدمة فحص تحديثات التطبيق من Supabase Storage.
 ///
-/// الفكرة: إنت ترفع APK جديد على GitHub Release برقم إصدار أكبر
-/// (مثال: v1.2.0)، والسيرفس يقارنه برقم تطبيق المستخدم.
+/// الفكرة: إنت ترفع ملف `update.json` + ملف APK على Supabase Storage (bucket عام)،
+/// والتطبيق يقارن رقم الإصدار الموجود في الـ json برقم تطبيق المستخدم.
 /// لو فيه إصدار أحدث → بيرجّع رابط التحميل.
+///
+/// محتوى ملف update.json المرفوع على Storage:
+/// {
+///   "version": "1.0.1",
+///   "apk_path": "app-release.apk",   // اسم الملف جوه نفس الـ bucket
+///   "title": "تحديث الأداء",
+///   "notes": "تحسينات في السرعة وإصلاح الأخطاء"
+/// }
 class AppUpdateService {
   AppUpdateService({
-    required this.owner,
-    required this.repo,
-    this.includePreReleases = false,
+    required this.bucket,
+    this.jsonPath = 'update.json',
   });
 
-  final String owner;
-  final String repo;
-  final bool includePreReleases;
+  final String bucket;
+  final String jsonPath;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   static const _timeout = Duration(seconds: 12);
 
-  /// بيفحص أحدث إصدار متاح على GitHub Releases.
+  /// يقرأ ملف update.json من الـ Storage ويقارن بالإصدار الحالي.
   /// يرجع null لو حصل خطأ أو مفيش نت.
-  Future<GitHubReleaseInfo?> checkForUpdate() async {
+  Future<SupabaseUpdateInfo?> checkForUpdate() async {
     try {
-      final url = Uri.https(
-        'api.github.com',
-        '/repos/$owner/$repo/releases',
-        includePreReleases ? null : {'per_page': '20'},
-      );
-      final res = await http.get(
-        url,
-        headers: {'Accept': 'application/vnd.github+json'},
-      ).timeout(_timeout);
+      final data = await _supabase.storage
+          .from(bucket)
+          .download(jsonPath)
+          .timeout(_timeout);
 
-      if (res.statusCode != 200) return null;
+      final text = utf8.decode(data);
+      final map = jsonDecode(text) as Map<String, dynamic>;
 
-      final List<dynamic> releases = jsonDecode(res.body) as List<dynamic>;
-      if (releases.isEmpty) return null;
-
-      // نفلتر الـ drafts والـ pre-releases (لو مش عايزينها)
-      final valid = releases.where((r) {
-        final map = r as Map<String, dynamic>;
-        if (map['draft'] == true) return false;
-        if (!includePreReleases && map['prerelease'] == true) return false;
-        return true;
-      }).toList();
-
-      if (valid.isEmpty) return null;
-
-      // نختار أول واحد (GitHub بيرجّعهم الأحدث أولاً)
-      final latest = valid.first as Map<String, dynamic>;
-      final tag = (latest['tag_name'] as String? ?? '').trim();
-      if (tag.isEmpty) return null;
+      final remoteVersion = (map['version'] as String? ?? '').trim();
+      if (remoteVersion.isEmpty) return null;
 
       final current = await _currentVersion();
-      final isNewer = _isNewer(tag, current);
+      final isNewer = _isNewer(remoteVersion, current);
 
-      // ندوّر على أول asset من امتداد apk
+      // نبني رابط تحميل الـ APK من الـ Storage (رابط عام)
       String? apkUrl;
-      final assets = latest['assets'] as List<dynamic>? ?? [];
-      for (final a in assets) {
-        final name = (a['name'] as String? ?? '').toLowerCase();
-        if (name.endsWith('.apk')) {
-          apkUrl = a['browser_download_url'] as String?;
-          break;
-        }
+      final apkPath = map['apk_path'] as String?;
+      if (apkPath != null && apkPath.isNotEmpty) {
+        apkUrl = _supabase.storage.from(bucket).getPublicUrl(apkPath);
       }
 
-      return GitHubReleaseInfo(
-        tagName: tag,
+      return SupabaseUpdateInfo(
+        version: remoteVersion,
         isNewer: isNewer,
         apkUrl: apkUrl,
-        htmlUrl: latest['html_url'] as String?,
-        name: latest['name'] as String?,
-        body: latest['body'] as String?,
+        title: map['title'] as String?,
+        notes: map['notes'] as String?,
       );
     } catch (e) {
       debugPrint('AppUpdateService error: $e');
@@ -92,10 +75,10 @@ class AppUpdateService {
     }
   }
 
-  /// يقارن رقمين إصدار: "v1.2.0" vs "1.1.5"
-  /// يرجع true لو [remoteTag] أحدث من [current].
-  bool _isNewer(String remoteTag, String current) {
-    final r = _normalize(remoteTag);
+  /// يقارن رقمين إصدار: "1.2.0" vs "1.1.5"
+  /// يرجع true لو [remote] أحدث من [current].
+  bool _isNewer(String remote, String current) {
+    final r = _normalize(remote);
     final c = _normalize(current);
 
     final rp = r.split('.').map((e) => int.tryParse(e) ?? 0).toList();
@@ -119,7 +102,6 @@ class AppUpdateService {
   String _normalize(String v) {
     var s = v.trim().toLowerCase();
     if (s.startsWith('v')) s = s.substring(1);
-    // نشيل أي لاحقة زي +build أو -beta
     final plus = s.indexOf('+');
     if (plus != -1) s = s.substring(0, plus);
     final dash = s.indexOf('-');
@@ -132,20 +114,18 @@ class AppUpdateService {
   }
 }
 
-class GitHubReleaseInfo {
-  const GitHubReleaseInfo({
-    required this.tagName,
+class SupabaseUpdateInfo {
+  const SupabaseUpdateInfo({
+    required this.version,
     required this.isNewer,
     this.apkUrl,
-    this.htmlUrl,
-    this.name,
-    this.body,
+    this.title,
+    this.notes,
   });
 
-  final String tagName;
+  final String version;
   final bool isNewer;
   final String? apkUrl;
-  final String? htmlUrl;
-  final String? name;
-  final String? body;
+  final String? title;
+  final String? notes;
 }
