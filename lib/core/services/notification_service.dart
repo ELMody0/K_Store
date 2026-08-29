@@ -31,8 +31,21 @@ class NotificationService {
     if (user == null) return;
     if (_initialized && _currentUserId == user.id) return;
 
+    // لو فيه اشتراكات قديمة (مستخدم مختلف أو بعد تسجيل خروج) نزيلها قبل الاشتراك الجديد
+    // لتجنّب تسريب القنوات وتكرار عدّاد غير المقروء
+    if (_messagesChannel != null) {
+      _supabase.removeChannel(_messagesChannel!);
+      _messagesChannel = null;
+    }
+    if (_chatsChannel != null) {
+      _supabase.removeChannel(_chatsChannel!);
+      _chatsChannel = null;
+    }
+    _myChatIds.clear();
+
     _currentUserId = user.id;
     _initialized = true;
+    unreadCountNotifier.value = 0;
 
     await _loadMyChats();
     _subscribeToChats();
@@ -126,7 +139,8 @@ class NotificationService {
       _supabase.removeChannel(_chatsChannel!);
       _chatsChannel = null;
     }
-    unreadCountNotifier.dispose();
+    // لا نستدعي unreadCountNotifier.dispose() لأنه وحيد (singleton) ويُعاد استخدامه عند تسجيل الدخول مجدداً
+    unreadCountNotifier.value = 0;
     _initialized = false;
     _currentUserId = null;
     _myChatIds.clear();

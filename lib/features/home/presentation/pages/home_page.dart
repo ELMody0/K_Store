@@ -16,6 +16,17 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final SupabaseClient supabase = Supabase.instance.client;
+  late Stream<List<Map<String, dynamic>>> _categoriesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initStream();
+  }
+
+  void _initStream() {
+    _categoriesStream = supabase.from('categories').stream(primaryKey: ['id']).order('created_at');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +37,10 @@ class _HomePageState extends State<HomePage> {
       body: WavyBackground(
         child: SafeArea(
           child: RefreshIndicator(
-            onRefresh: () async => setState(() {}), // تحديث يدوي عند السحب للأسفل
+            onRefresh: () async {
+              // إعادة بناء الـ stream لسحب أحدث الأقسام من السيرفر
+              if (mounted) setState(() => _initStream());
+            }, // تحديث يدوي عند السحب للأسفل
             color: textColor,
             backgroundColor: isDark ? AppColors.darkGrey : Colors.white,
             child: Column(
@@ -86,7 +100,7 @@ class _HomePageState extends State<HomePage> {
                 // جلب الأقسام
                 Expanded(
                   child: StreamBuilder<List<Map<String, dynamic>>>(
-                    stream: supabase.from('categories').stream(primaryKey: ['id']).order('created_at'),
+                    stream: _categoriesStream,
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
                         return Center(

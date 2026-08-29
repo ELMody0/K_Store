@@ -17,9 +17,16 @@ class UsersManagementPage extends StatefulWidget {
 class _UsersManagementPageState extends State<UsersManagementPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   String _searchQuery = '';
+  late final Stream<List<Map<String, dynamic>>> _usersStream;
 
   final Map<String, String> _pendingRoleUpdates = {};
   final Map<String, bool> _pendingVerificationUpdates = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _usersStream = _supabase.from('profiles').stream(primaryKey: ['id']).order('full_name');
+  }
 
   Future<void> _updateUserRole(String userId, String newRole) async {
     setState(() => _pendingRoleUpdates[userId] = newRole);
@@ -68,21 +75,23 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
               ),
               Expanded(
                 child: StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: _supabase.from('profiles').stream(primaryKey: ['id']).order('full_name'),
+                  stream: _usersStream,
                   builder: (context, snapshot) {
                     final users = snapshot.data?.where((u) => (u['full_name']?.toString().toLowerCase() ?? '').contains(_searchQuery)).toList() ?? [];
-                    // Clean up pending updates when stream confirms the change
-                    for (final user in users) {
-                      final id = user['id']?.toString();
-                      final pendingRole = _pendingRoleUpdates[id];
-                      if (pendingRole != null && user['role'] == pendingRole) {
-                        _pendingRoleUpdates.remove(id);
+                    // تنظيف التحديثات المعلّقة بعد انتهاء الـ build (وليس أثناءه) لتجنّب تعديل الحالة جوه الـ build
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      for (final user in users) {
+                        final id = user['id']?.toString();
+                        final pendingRole = _pendingRoleUpdates[id];
+                        if (pendingRole != null && user['role'] == pendingRole) {
+                          _pendingRoleUpdates.remove(id);
+                        }
+                        final pendingVerification = _pendingVerificationUpdates[id];
+                        if (pendingVerification != null && user['is_verified'] == pendingVerification) {
+                          _pendingVerificationUpdates.remove(id);
+                        }
                       }
-                      final pendingVerification = _pendingVerificationUpdates[id];
-                      if (pendingVerification != null && user['is_verified'] == pendingVerification) {
-                        _pendingVerificationUpdates.remove(id);
-                      }
-                    }
+                    });
                     return ListView.builder(
                       padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                       itemCount: users.length,

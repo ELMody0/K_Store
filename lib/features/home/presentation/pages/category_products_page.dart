@@ -24,11 +24,13 @@ class CategoryProductsPage extends StatefulWidget {
 class _CategoryProductsPageState extends State<CategoryProductsPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   String? _userRole;
+  late final Stream<List<Map<String, dynamic>>> _productsStream;
 
   @override
   void initState() {
     super.initState();
     _getUserRole();
+    _productsStream = _supabase.from('products').stream(primaryKey: ['id']).eq('category_id', widget.categoryId).order('created_at');
   }
 
   Future<void> _getUserRole() async {
@@ -65,7 +67,7 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
       body: WavyBackground(
         child: SafeArea(
           child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _supabase.from('products').stream(primaryKey: ['id']).eq('category_id', widget.categoryId).order('created_at'),
+            stream: _productsStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Colors.white));
               final products = snapshot.data ?? [];

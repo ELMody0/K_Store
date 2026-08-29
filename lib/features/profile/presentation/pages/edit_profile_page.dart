@@ -66,11 +66,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
     setState(() => _isSaving = true);
     try {
       final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        if (mounted) AppSnackBar.show(context, 'يجب تسجيل الدخول أولاً', error: true);
+        return;
+      }
       await _supabase.from('profiles').update({
         'full_name': _nameController.text.trim(),
         'phone': _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
         'avatar_url': _currentAvatarUrl,
-      }).eq('id', userId!);
+      }).eq('id', userId);
       
       widget.onUpdate();
       if (mounted) {

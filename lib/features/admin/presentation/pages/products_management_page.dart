@@ -32,11 +32,15 @@ class _ProductsManagementPageState extends State<ProductsManagementPage> {
   bool _isUploading = false;
   String? _currentUserId;
   bool _isOwnerRole = false;
+  late final Stream<List<Map<String, dynamic>>> _categoriesStream;
+  late final Stream<List<Map<String, dynamic>>> _productsStream;
 
   @override
   void initState() {
     super.initState();
     _loadRole();
+    _categoriesStream = _supabase.from('categories').stream(primaryKey: ['id']);
+    _productsStream = _supabase.from('products').stream(primaryKey: ['id']).order('created_at');
   }
 
   Future<void> _loadRole() async {
@@ -70,7 +74,13 @@ class _ProductsManagementPageState extends State<ProductsManagementPage> {
 
   Future<void> _addProduct() async {
     if (_isUploading) return; // حماية ضد الضغط المتكرر
-    
+
+    final currentUser = _supabase.auth.currentUser;
+    if (currentUser == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يجب تسجيل الدخول أولاً')));
+      return;
+    }
+
     if (_nameArController.text.isEmpty || _thumbnailImage == null || _selectedCategoryId == null || _priceController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يرجى اختيار صورة غلاف وتعبئة البيانات')));
       return;
@@ -78,6 +88,11 @@ class _ProductsManagementPageState extends State<ProductsManagementPage> {
     
     setState(() => _isUploading = true);
     try {
+      final price = double.tryParse(_priceController.text);
+      if (price == null) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إدخال سعر صحيح بالأرقام')));
+        return;
+      }
       // 1. رفع صورة الغلاف
       final thumbnailUrl = await _cloudinary.uploadImage(_thumbnailImage!);
 
@@ -93,21 +108,22 @@ class _ProductsManagementPageState extends State<ProductsManagementPage> {
         'category_id': _selectedCategoryId,
         'name_ar': _nameArController.text.trim(),
         'description_ar': _descriptionArController.text.trim(),
-        'price': double.parse(_priceController.text),
+        'price': price,
         'stock_quantity': int.tryParse(_stockController.text) ?? 0,
         'thumbnail_url': thumbnailUrl,
         'images_urls': galleryUrls,
-        'user_id': _supabase.auth.currentUser!.id,
+        'user_id': currentUser.id,
       }).select().single();
 
       // إشعار broadcast لكل المستخدمين (ما عدا الناشر) عن المنتج الجديد
       try {
-        final myId = _supabase.auth.currentUser!.id;
+        final myId = currentUser.id;
         await _supabase.functions.invoke(
           'send-push',
           body: {
             'broadcast': true,
             'exclude_user_id': myId,
+            'caller_id': myId,
             'sender_id': myId,
             'title': 'منتج جديد',
             'body': insertedProduct['name_ar'] ?? 'تمت إضافة منتج جديد',
@@ -161,12 +177,14 @@ class _ProductsManagementPageState extends State<ProductsManagementPage> {
       ),
       body: WavyBackground(
         child: SafeArea(
-          child: Column(
-            children: [
-              _buildAddProductSection(isDark, textColor),
-              const Padding(padding: EdgeInsets.symmetric(horizontal: 25), child: Divider(color: Colors.white10)),
-              Expanded(child: _buildProductsList(isDark, textColor)),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildAddProductSection(isDark, textColor),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 25), child: Divider(color: Colors.white10)),
+                _buildProductsList(isDark, textColor),
+              ],
+            ),
           ),
         ),
       ),
@@ -184,8 +202,7 @@ class _ProductsManagementPageState extends State<ProductsManagementPage> {
             borderRadius: BorderRadius.circular(25),
             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 15)],
           ),
-          child: SingleChildScrollView(
-            child: Column(
+          child: Column(
               children: [
                 Text('صورة الغلاف (الرئيسية)', style: TextStyle(color: textColor.withValues(alpha: 0.5), fontSize: 12)),
                 const SizedBox(height: 10),
@@ -225,7 +242,7 @@ class _ProductsManagementPageState extends State<ProductsManagementPage> {
                 ),
                 const SizedBox(height: 20),
                 StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: _supabase.from('categories').stream(primaryKey: ['id']),
+                  stream: _categoriesStream,
                   builder: (context, snapshot) {
                     final categories = snapshot.data ?? [];
                     return DropdownButtonFormField<String>(
@@ -263,13 +280,12 @@ class _ProductsManagementPageState extends State<ProductsManagementPage> {
             ),
           ),
         ),
-      ),
     );
   }
 
   Widget _buildProductsList(bool isDark, Color textColor) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _supabase.from('products').stream(primaryKey: ['id']).order('created_at'),
+      stream: _productsStream,
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
         final products = snapshot.data!;
@@ -278,6 +294,8 @@ class _ProductsManagementPageState extends State<ProductsManagementPage> {
             ? products
             : products.where((p) => p['user_id'] == _currentUserId).toList();
         return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
           itemCount: visible.length,
           itemBuilder: (context, index) {

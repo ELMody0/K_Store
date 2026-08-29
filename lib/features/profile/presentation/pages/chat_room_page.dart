@@ -17,6 +17,7 @@ import 'user_profile_page.dart';
 import '../../../../core/utils/role_localization.dart';
 import 'package:k_store/core/widgets/app_image.dart';
 import 'package:k_store/core/widgets/app_snackbar.dart';
+import 'package:k_store/core/services/notification_service.dart';
 
 class ChatRoomPage extends StatefulWidget {
   final String chatId;
@@ -67,16 +68,27 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   static const String _supportBotName = 'إدارة المتجر';
   static const String _supportAutoReply = 'يرجى الانتظار حتى المراجعة';
   RealtimeChannel? _channel; // قناة الـ realtime للحالة
+  late final Stream<List<Map<String, dynamic>>> _messagesStream;
+  bool _didAutoScroll = false;
+  final Map<String, Future<Map<String, dynamic>?>> _replyQuoteCache = {};
+  final Map<String, Future<Map<String, dynamic>?>> _productReplyCache = {};
   Timer? _typingTimer;
   DateTime? _recordingStart; // وقت بدء التسجيل (لحساب المدة)
 
   @override
   void initState() {
     super.initState();
+    // فتح المحادثة يُعتبر اطّلاعاً عليها → نمسح عدّاد غير المقروء (يغطي فتح الشات من إشعار FCM مباشرةً)
+    NotificationService().clearUnread();
     _attachedProduct = widget.attachedProduct;
     _fetchOtherUserInfo();
     _loadCurrentUserRole();
     _initRealtime();
+    _messagesStream = _supabase
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .eq('chat_id', widget.chatId)
+        .order('created_at', ascending: true);
     _audioPlayer.onPlayerComplete.listen((_) {
       if (mounted) {
         setState(() {
@@ -333,6 +345,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         'send-push',
         body: {
           'user_id': otherId,
+          'caller_id': myId,
           'sender_id': myId,
           'title': 'منتج مُشارَك',
           'body': body,
@@ -503,7 +516,8 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
 
     _isSending = true;
 
-    final text = _msgController.text.trim();
+    final raw = _msgController.text.trim();
+    final text = raw.length > 5000 ? raw.substring(0, 5000) : raw;
     final attachedProductId = _attachedProduct?['id'];
     final replyToId = _replyTo?['id'];
     _msgController.clear();
@@ -629,7 +643,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             const SizedBox(height: kToolbarHeight + 40),
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
-                stream: _supabase.from('messages').stream(primaryKey: ['id']).eq('chat_id', widget.chatId).order('created_at', ascending: true),
+                stream: _messagesStream,
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.white24));
 
@@ -646,25 +660,31 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                   }
                   final messages = uniqueMap.values.toList();
 
-                  // تعليم رسائل الطرف الآخر كـ "مقروءة" عند فتح المحادثة (مرة واحدة)
-                  if (myId != null) {
-                    final hasUnread = messages.any((m) => m['sender_id'] != myId && m['read_at'] == null);
-                    if (hasUnread && !_markingRead) {
-                      _markingRead = true;
-                      _supabase
-                          .rpc('mark_messages_read', params: {'p_chat_id': widget.chatId, 'p_reader_id': myId})
-                          .then((_) { _markingRead = false; })
-                          .catchError((_) { _markingRead = false; });
-                    }
-                  }
-
+                  // ننفّذ الآثار الجانبية (تعليم القراءة + التمرير) بعد انتهاء الـ build وليس داخله
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (_scrollController.hasClients) {
+                    if (myId != null) {
+                      final hasUnread = messages.any((m) => m['sender_id'] != myId && m['read_at'] == null);
+                      if (hasUnread && !_markingRead) {
+                        _markingRead = true;
+                        _supabase
+                            .rpc('mark_messages_read', params: {'p_chat_id': widget.chatId, 'p_reader_id': myId})
+                            .then((_) { _markingRead = false; })
+                            .catchError((_) { _markingRead = false; });
+                      }
+                    }
+
+                    // تمرير لأسفل: عند أول تحميل دائماً، وبعدها فقط لو المستخدم قرب من القاع
+                    // (نمنع "خطف" المستخدم وهو يقرأ الرسائل القديمة عند وصول رسالة جديدة)
+                    if (!_scrollController.hasClients) return;
+                    final pos = _scrollController.position;
+                    final atBottom = pos.pixels >= pos.maxScrollExtent - 80;
+                    if (!_didAutoScroll || atBottom) {
                       _scrollController.animateTo(
-                        _scrollController.position.maxScrollExtent,
+                        pos.maxScrollExtent,
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeOut,
                       );
+                      _didAutoScroll = true;
                     }
                   });
 
@@ -950,10 +970,14 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   }
 
   Widget _buildReplyQuote(dynamic replyTo) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _supabase.from('messages').select().eq('id', replyTo).single(),
+    final future = _replyQuoteCache.putIfAbsent(
+      replyTo.toString(),
+      () => _supabase.from('messages').select().eq('id', replyTo).maybeSingle(),
+    );
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: future,
       builder: (context, snap) {
-        if (!snap.hasData) return const SizedBox();
+        if (snap.data == null) return const SizedBox();
         final r = snap.data!;
         final txt = r['message_type'] == 'audio' ? '🎤 رسالة صوتية' : (r['content'] ?? '');
         return Container(
@@ -1253,10 +1277,14 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
 
   // --- UI Helpers for Message ---
   Widget _buildProductReply(String productId, bool isMe, Color textColor) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _supabase.from("products").select().eq('id', productId).single(),
+    final future = _productReplyCache.putIfAbsent(
+      productId,
+      () => _supabase.from('products').select().eq('id', productId).maybeSingle(),
+    );
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: future,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (snapshot.data == null) {
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
             height: 80,

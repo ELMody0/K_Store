@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
@@ -43,7 +44,8 @@ class AuthService {
       
       return exactResponse.isNotEmpty;
     } catch (e) {
-      // Silently fail - let Supabase handle duplicates during signUp
+      // لو حصل خطأ (مثلاً مفيش نت)، نرجّع false ونطبع الخطأ بدل ما نخفيّه في صمت
+      debugPrint('isFullNameTaken error: $e');
       return false;
     }
   }
@@ -67,6 +69,7 @@ class AuthService {
       return false;
     } catch (e) {
       // Silently fail - email uniqueness enforced by Supabase
+      debugPrint('isEmailTaken error: $e');
       return false;
     }
   }
@@ -85,6 +88,11 @@ class AuthService {
   // Sign Out
   Future<void> signOut() async {
     await _supabase.auth.signOut();
+  }
+
+  // Reset password (send reset link to email)
+  Future<void> resetPassword(String email) async {
+    await _supabase.auth.resetPasswordForEmail(email);
   }
 
   // Get current user

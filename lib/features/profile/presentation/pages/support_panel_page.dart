@@ -50,7 +50,13 @@ class _SupportPanelPageState extends State<SupportPanelPage> {
       final myId = supabase.auth.currentUser?.id;
       if (myId == null) return;
       final owner = await supabase.from('profiles').select('id').eq('role', 'owner').limit(1).maybeSingle();
-      final ownerId = owner?['id'] ?? myId;
+      if (owner == null || owner['id'] == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر الوصول إلى الإدارة، حاول لاحقاً')));
+        }
+        return;
+      }
+      final ownerId = owner['id'];
 
       // ندوّر على محادثة دعم موجودة بين المستخدم وصاحب المتجر (منفصلة تماماً عن شات التواصل العادي)
       final myChats = await supabase

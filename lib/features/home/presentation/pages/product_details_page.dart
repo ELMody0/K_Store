@@ -27,6 +27,8 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
   late List<String> _allImages;
   bool _isOwner = false;
   String? _userRole;
+  late final Stream<List<Map<String, dynamic>>> _commentsStream;
+  final Map<String, Future<Map<String, dynamic>?>> _commentUserCache = {};
 
   @override
   void initState() {
@@ -34,6 +36,11 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     _pageController = PageController();
     _checkOwnership();
     _loadUserRole();
+    _commentsStream = _supabase
+        .from('comments')
+        .stream(primaryKey: ['id'])
+        .eq('product_id', widget.product['id'])
+        .order('created_at', ascending: true);
     final List gallery = widget.product['images_urls'] ?? [];
     final String? thumb = widget.product['thumbnail_url'];
     _allImages = thumb != null ? [thumb, ...gallery.cast<String>()] : gallery.cast<String>();
@@ -482,10 +489,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
 
   Widget _buildCommentsList(Color textColor, bool isDark) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _supabase.from('comments')
-          .stream(primaryKey: ['id'])
-          .eq('product_id', widget.product['id'])
-          .order('created_at', ascending: true),
+      stream: _commentsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
@@ -512,10 +516,15 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
   }
 
   Widget _buildCommentItem(Map<String, dynamic> comment, Color textColor, bool isDark) {
-    return FutureBuilder(
-      future: _supabase.from('profiles').select().eq('id', comment['user_id']).single(),
+    final userId = comment['user_id']?.toString() ?? '';
+    final userFuture = _commentUserCache.putIfAbsent(
+      userId,
+      () => _supabase.from('profiles').select().eq('id', userId).maybeSingle(),
+    );
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: userFuture,
       builder: (context, userSnap) {
-        if (!userSnap.hasData) return const SizedBox();
+        if (userSnap.data == null) return const SizedBox();
         final user = userSnap.data!;
         final currentUserId = _supabase.auth.currentUser?.id;
         // المالك يحذف أي كومنت، وصاحب البوست (customer) يحذف أي كومنت على بوسته، وكل مستخدم يحذف كومنته بس

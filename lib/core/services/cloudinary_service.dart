@@ -12,8 +12,26 @@ class CloudinaryService {
     cache: false,
   );
 
+  // حماية: الحد الأقصى للحجم (15MB) لتقليل إساءة استخدام الـ unsigned preset.
+  static const int _maxBytes = 15 * 1024 * 1024;
+  static const Set<String> _allowedExt = {
+    'jpg', 'jpeg', 'png', 'webp', 'gif',
+    'mp4', 'mov', 'webm', 'm4v',
+    'm4a', 'mp3', 'wav', 'aac', 'ogg',
+  };
+
   Future<String?> uploadFile(File file, {CloudinaryResourceType resourceType = CloudinaryResourceType.Auto}) async {
     try {
+      final size = await file.length();
+      if (size > _maxBytes) {
+        debugPrint('Cloudinary Upload Error: file too large ($size bytes)');
+        return null;
+      }
+      final ext = file.path.split('.').last.toLowerCase();
+      if (!_allowedExt.contains(ext)) {
+        debugPrint('Cloudinary Upload Error: unsupported file type .$ext');
+        return null;
+      }
       CloudinaryResponse response = await _cloudinary.uploadFile(
         CloudinaryFile.fromFile(
           file.path,

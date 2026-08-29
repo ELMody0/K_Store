@@ -19,10 +19,23 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
 
   void _login() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('الرجاء إدخال البريد الإلكتروني وكلمة المرور')),
       );
+      return;
+    }
+
+    // Validate email format
+    final emailRegex = RegExp(r'^[\w.-]+@[\w-]+\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(email)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('صيغة البريد الإلكتروني غير صحيحة')),
+        );
+      }
       return;
     }
 
@@ -42,6 +55,40 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('خطأ في تسجيل الدخول: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الرجاء إدخال بريدك الإلكتروني أولاً')),
+      );
+      return;
+    }
+    final emailRegex = RegExp(r'^[\w.-]+@[\w-]+\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('صيغة البريد الإلكتروني غير صحيحة')),
+      );
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      await _authService.resetPassword(email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذّر إرسال الرابط: $e')),
         );
       }
     } finally {
@@ -132,7 +179,7 @@ class _LoginPageState extends State<LoginPage> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton(
-                    onPressed: () {},
+                    onPressed: _isLoading ? null : _forgotPassword,
                     child: Text(
                       'نسيت كلمة المرور؟', 
                       style: TextStyle(color: textColor.withValues(alpha: 0.6), fontWeight: FontWeight.bold)

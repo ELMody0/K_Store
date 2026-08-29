@@ -8,8 +8,28 @@ import 'package:k_store/core/widgets/app_image.dart';
 import 'package:k_store/core/widgets/empty_state.dart';
 import 'package:k_store/core/widgets/app_snackbar.dart';
 
-class ChatPage extends StatelessWidget {
+class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
+
+  @override
+  State<ChatPage> createState() => _ChatPageState();
+}
+
+class _ChatPageState extends State<ChatPage> {
+  final SupabaseClient _supabase = Supabase.instance.client;
+  late final Future<Map<String, dynamic>?> _roleFuture;
+  late final Stream<List<Map<String, dynamic>>> _chatsStream;
+  final Map<String, Future<Map<String, dynamic>?>> _profileCache = {};
+
+  @override
+  void initState() {
+    super.initState();
+    final myId = _supabase.auth.currentUser?.id;
+    _roleFuture = myId != null
+        ? _supabase.from('profiles').select('role').eq('id', myId).single()
+        : Future.value(null);
+    _chatsStream = _supabase.from('chats').stream(primaryKey: ['id']).order('last_message_at', ascending: false);
+  }
 
   void _showChatOptions(BuildContext context, Map<String, dynamic> chat, SupabaseClient supabase, String name) {
     final myId = supabase.auth.currentUser?.id;
@@ -61,7 +81,7 @@ class ChatPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
-    final currentUser = Supabase.instance.client.auth.currentUser;
+    final currentUser = _supabase.auth.currentUser;
 
     if (currentUser == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -69,16 +89,11 @@ class ChatPage extends StatelessWidget {
 
     final myId = currentUser.id;
 
-    return FutureBuilder<String?>(
-      future: Supabase.instance.client
-          .from('profiles')
-          .select('role')
-          .eq('id', myId)
-          .single()
-          .then((d) => d['role']?.toString()),
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _roleFuture,
       builder: (context, roleSnap) {
-        final myRole = roleSnap.data;
-        final supabase = Supabase.instance.client;
+        final myRole = roleSnap.data?['role']?.toString();
+        final supabase = _supabase;
 
         return Scaffold(
           body: WavyBackground(
@@ -94,7 +109,7 @@ class ChatPage extends StatelessWidget {
                   const SizedBox(height: 25),
                   Expanded(
                     child: StreamBuilder<List<Map<String, dynamic>>>(
-                      stream: supabase.from('chats').stream(primaryKey: ['id']).order('last_message_at', ascending: false),
+                      stream: _chatsStream,
                       builder: (context, snapshot) {
                         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.white));
 
@@ -151,10 +166,14 @@ class ChatPage extends StatelessWidget {
                               );
                             }
 
-                            return FutureBuilder(
-                              future: supabase.from('profiles').select().eq('id', otherId).single(),
+                            final profileFuture = _profileCache.putIfAbsent(
+                              otherId.toString(),
+                              () => supabase.from('profiles').select().eq('id', otherId).maybeSingle(),
+                            );
+                            return FutureBuilder<Map<String, dynamic>?>(
+                              future: profileFuture,
                               builder: (context, profileSnapshot) {
-                                if (!profileSnapshot.hasData) return const SizedBox();
+                                if (profileSnapshot.data == null) return const SizedBox();
                                 final otherUser = profileSnapshot.data!;
                                 final name = otherUser['full_name'] ?? 'مستخدم';
                                 return FadeInUp(

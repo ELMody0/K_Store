@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:k_store/core/theme/app_theme.dart';
 import 'package:k_store/core/widgets/wavy_background.dart';
 
@@ -9,8 +10,28 @@ const LinearGradient _goldGradient = LinearGradient(
   end: Alignment.bottomRight,
 );
 
-class AboutUsPage extends StatelessWidget {
+class AboutUsPage extends StatefulWidget {
   const AboutUsPage({super.key});
+
+  @override
+  State<AboutUsPage> createState() => _AboutUsPageState();
+}
+
+class _AboutUsPageState extends State<AboutUsPage> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() => _version = info.version);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -243,6 +264,11 @@ class AboutUsPage extends StatelessWidget {
           Text('صُنع بكل اهتمام من فريق K SHOP', style: TextStyle(fontSize: 13, color: subColor, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Text('© 2026 K SHOP. جميع الحقوق محفوظة.', style: TextStyle(fontSize: 11, color: subColor.withValues(alpha: 0.7))),
+          const SizedBox(height: 10),
+          Text(
+            _version.isEmpty ? 'الإصدار ...' : 'الإصدار $_version',
+            style: const TextStyle(fontSize: 12, color: Color(0xFFD4AF37), fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );

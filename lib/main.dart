@@ -39,11 +39,12 @@ void main() async {
 
     const String supabaseUrl = 'https://mcygszronpkcxnhfbuyc.supabase.co';
     
-    // تم استبدال المفتاح بمفتاح الـ anon السحابي الصحيح الخاص بك لحل مشكلة التعليق والانهيار
-    const String publishableKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeWdzenJvbnBrY3huaGZidXljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMzIzNDEsImV4cCI6MjEwMjgwODM0MX0.P1iJFvCR9DW92P59F6zhAWpgzST1Tt1XvpSk3xd5sCk'; 
+    // مفتاح النشر الحديث (sb_publishable_) — آمن للاستخدام في الكلاينت مع تفعيل RLS
+    const String publishableKey = 'sb_publishable_Rca1nNU2ud45LbxUSmj8Ig_Fm-kwfJl';
 
     // فحص ذكي لتنبيه المطور بالخطأ الفادح في نوع المفتاح المستخدم
-    if (supabaseUrl.contains('sup abase.co') && !publishableKey.startsWith('eyJ')) {
+    final isPublishable = publishableKey.startsWith('eyJ') || publishableKey.startsWith('sb_publishable_');
+    if (supabaseUrl.contains('sup abase.co') && !isPublishable) {
       debugPrint('=========================================');
       debugPrint('⚠️ خطأ فادح يمنع عمل التطبيق ويسبب الانهيار:');
       debugPrint('أنت تستخدم رابط مستضاف سحابياً (.sup-abase.co) ولكنك تضع مفتاح محلي (sb_publishable_...).');

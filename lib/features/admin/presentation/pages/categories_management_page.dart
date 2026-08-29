@@ -25,6 +25,13 @@ class _CategoriesManagementPageState extends State<CategoriesManagementPage> {
   
   File? _selectedImage;
   bool _isUploading = false;
+  late final Stream<List<Map<String, dynamic>>> _categoriesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _categoriesStream = _supabase.from('categories').stream(primaryKey: ['id']).order('created_at');
+  }
 
   @override
   void dispose() {
@@ -142,7 +149,7 @@ class _CategoriesManagementPageState extends State<CategoriesManagementPage> {
 
   Widget _buildCategoriesList(bool isDark, Color textColor) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _supabase.from('categories').stream(primaryKey: ['id']).order('created_at'),
+      stream: _categoriesStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

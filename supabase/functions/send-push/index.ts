@@ -95,11 +95,52 @@ Deno.serve(async (req) => {
       image: imageOverride,
       broadcast,
       exclude_user_id,
+      caller_id, // مضاف: معرّف المستخدم اللي نادى الدالة (auth.uid() من الكلاينت)
     } = await req.json();
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // ===== تحقق أمني: منادِي الدالة لازم يكون مسجّل دخول =====
+    if (!caller_id) {
+      return new Response(JSON.stringify({ error: "missing caller_id" }), { status: 401 });
+    }
+
+    // التحقق من الرتبة (owner) عبر دالة قاعدة البيانات الآمنة
+    const { data: roleData } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", caller_id)
+      .single();
+    const isOwner = roleData
+      ? String(roleData.role).toLowerCase() === "owner"
+      : false;
+
+    // منع broadcast (إشعار لكل الناس) إلا لو المالك
+    if (broadcast && !isOwner) {
+      return new Response(
+        JSON.stringify({ error: "غير مصرح بإرسال إشعار عام" }),
+        { status: 403 },
+      );
+    }
+
+    // منع إرسال لـ user_id معيّن إلا لو المالك، أو صاحب المنتج (broadcast)،
+    // أو تابع لشات مشارك فيه فعلاً (للرسايل الشخصية)
+    if (!broadcast && !isOwner && user_id && user_id !== caller_id) {
+      // تأكد إن caller_id مشارك في شات مع user_id
+      const { data: chatCheck } = await supabase
+        .from("chats")
+        .select("id")
+        .or(`and(user1_id.eq.${caller_id},user2_id.eq.${user_id}),and(user1_id.eq.${user_id},user2_id.eq.${caller_id})`)
+        .limit(1);
+      if (!chatCheck || chatCheck.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "غير مصرح بإرسال إشعار لهذا المستخدم" }),
+          { status: 403 },
+        );
+      }
+    }
 
     // جلب اسم/صورة المرسل إن وُجد
     let resolvedName: string | undefined = sender_name;

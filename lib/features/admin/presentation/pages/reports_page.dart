@@ -23,6 +23,14 @@ class ReportsPage extends StatefulWidget {
 
 class _ReportsPageState extends State<ReportsPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
+  late final Stream<List<Map<String, dynamic>>> _reportsStream;
+  final Map<String, Future<_ReportMeta>> _metaCache = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _reportsStream = _supabase.from('reports').stream(primaryKey: ['id']).order('created_at', ascending: false);
+  }
 
   String _format(DateTime? d) {
     if (d == null) return '';
@@ -151,7 +159,7 @@ class _ReportsPageState extends State<ReportsPage> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 110, 20, 20),
           child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _supabase.from('reports').stream(primaryKey: ['id']).order('created_at', ascending: false),
+            stream: _reportsStream,
             builder: (context, snapshot) {
               if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.white));
               final reports = snapshot.data!;
@@ -196,7 +204,7 @@ class _ReportsPageState extends State<ReportsPage> {
                               const Spacer(),
                               Expanded(
                                 child: FutureBuilder<_ReportMeta>(
-                                  future: _loadMeta(r),
+                                  future: _metaCache.putIfAbsent(r['id'].toString(), () => _loadMeta(r)),
                                   builder: (context, snap) {
                                     final meta = snap.data;
                                     return Column(
@@ -247,7 +255,7 @@ class _ReportsPageState extends State<ReportsPage> {
                               ),
                               if (r['reported_user_id'] != null)
                                 FutureBuilder<_ReportMeta>(
-                                  future: _loadMeta(r),
+                                  future: _metaCache.putIfAbsent(r['id'].toString(), () => _loadMeta(r)),
                                   builder: (context, snap) {
                                     final target = snap.data?.target;
                                     if (target == null) return const SizedBox();

@@ -9,6 +9,7 @@ import 'settings_page.dart';
 import '../../../admin/presentation/pages/owner_panel.dart'; // المسار الصحيح
 import '../../../../core/utils/role_localization.dart';
 import 'package:k_store/core/widgets/app_image.dart';
+import 'package:k_store/core/services/notification_service.dart';
 import 'notification_settings_page.dart';
 import 'support_panel_page.dart';
 import 'about_us_page.dart';
@@ -25,10 +26,15 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   Map<String, dynamic>? _userData;
+  late final Stream<List<Map<String, dynamic>>> _profileStream;
 
   @override
   void initState() {
     super.initState();
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid != null) {
+      _profileStream = _supabase.from('profiles').stream(primaryKey: ['id']).eq('id', uid);
+    }
     _fetchUserData();
   }
 
@@ -80,6 +86,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (confirm == true) {
       await _supabase.auth.signOut();
+      NotificationService().dispose();
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const AuthPage()),
@@ -102,17 +109,18 @@ class _ProfilePageState extends State<ProfilePage> {
         child: SafeArea(
           child: StreamBuilder<List<Map<String, dynamic>>>(
             // استخدام Stream لمراقبة تغييرات ملف المستخدم لحظياً
-            stream: _supabase
-                .from('profiles')
-                .stream(primaryKey: ['id'])
-                .eq('id', user.id),
+            stream: _profileStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting && _userData == null) {
                 return const Center(child: CircularProgressIndicator(color: Colors.white24));
               }
 
               if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                _userData = snapshot.data!.first;
+                final data = snapshot.data!.first;
+                // نحدّث الحالة بعد انتهاء الـ build (وليس أثناءه) لتجنّب تعديل الحالة جوه الـ build
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _userData != data) setState(() => _userData = data);
+                });
               }
 
               return SingleChildScrollView(
