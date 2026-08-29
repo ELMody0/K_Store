@@ -317,7 +317,29 @@ class _ProductsManagementPageState extends State<ProductsManagementPage> {
                     title: Text(prod['name_ar'], style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
                     subtitle: Text('${prod['price']}', style: TextStyle(color: textColor.withValues(alpha: 0.9), fontWeight: FontWeight.bold)),
                     trailing: (_isOwnerRole || prod['user_id'] == _currentUserId)
-                        ? IconButton(icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent), onPressed: () => _supabase.from('products').delete().eq('id', prod['id']))
+                        ? IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  backgroundColor: isDark ? AppColors.darkGrey : Colors.white,
+                                  title: const Text('حذف المنتج؟'),
+                                  content: const Text('هل أنت متأكد من حذف هذا المنتج؟ لا يمكن التراجع.'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('حذف', style: TextStyle(color: Colors.redAccent)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                await _supabase.from('products').delete().eq('id', prod['id']);
+                              }
+                            },
+                          )
                         : null,
                   ),
                 ),

@@ -44,7 +44,7 @@ void main() async {
 
     // فحص ذكي لتنبيه المطور بالخطأ الفادح في نوع المفتاح المستخدم
     final isPublishable = publishableKey.startsWith('eyJ') || publishableKey.startsWith('sb_publishable_');
-    if (supabaseUrl.contains('sup abase.co') && !isPublishable) {
+    if (supabaseUrl.contains('supabase.co') && !isPublishable) {
       debugPrint('=========================================');
       debugPrint('⚠️ خطأ فادح يمنع عمل التطبيق ويسبب الانهيار:');
       debugPrint('أنت تستخدم رابط مستضاف سحابياً (.sup-abase.co) ولكنك تضع مفتاح محلي (sb_publishable_...).');
@@ -107,10 +107,10 @@ class MyApp extends StatelessWidget {
           title: 'K Shop',
           debugShowCheckedModeBanner: false,
           navigatorKey: navigatorKey,
-          locale: const Locale('en'),
+          locale: const Locale('ar'),
           supportedLocales: const [
-            Locale('en'),
             Locale('ar'),
+            Locale('en'),
           ],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,

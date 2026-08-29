@@ -51,27 +51,18 @@ class AuthService {
   }
 
   // Check if email is taken
+  // ملاحظة: الإيميل موجود فقط في auth.users (مقيد الوصول)، فمقدرش نتأكد من الكلاينت مباشرة.
+  // أفضل ممارسة: نعتمد على رفض Supabase وقت signUp (معالَج في signup_page).
+  // الدالة دي بتحاول RPC لو موجود، وإلا ترجّع false (best-effort).
   Future<bool> isEmailTaken(String email) async {
+    final normalized = email.trim().toLowerCase();
     try {
-      final normalized = email.trim().toLowerCase();
-      
-      // Try RPC first if it exists
-      try {
-        final data = await _supabase.rpc('check_email_exists', params: {'email': normalized});
-        if (data == true) return true;
-      } catch (_) {
-        // RPC doesn't exist, continue with fallback
-      }
-      
-      // Note: We can't directly query auth.users from client side
-      // Email uniqueness will be enforced by Supabase during signUp
-      // This check is best-effort only
-      return false;
-    } catch (e) {
-      // Silently fail - email uniqueness enforced by Supabase
-      debugPrint('isEmailTaken error: $e');
-      return false;
+      final data = await _supabase.rpc('check_email_exists', params: {'p_email': normalized});
+      if (data == true) return true;
+    } catch (_) {
+      // RPC غير متاح أو مقيّد — نسيبها false ونعتمد على signUp برفض المكرر
     }
+    return false;
   }
 
   // Sign In

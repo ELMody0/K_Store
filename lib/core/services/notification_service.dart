@@ -125,8 +125,19 @@ class NotificationService {
   }
 
   /// تصفير عدّاد غير مقروء تلقائياً عند مغادرة المفاوضة
-  void resetForChat(String chatId) {
-    // يمكن توسعة لاحقاً لحساب غير مقروء per-chat
+  /// ويعلّم رسايل المحادثة كمقروءة في قاعدة البيانات (لو المستخدم مشارك)
+  Future<void> resetForChat(String chatId) async {
+    final myId = _currentUserId;
+    if (myId == null || chatId.isEmpty) return;
+    try {
+      await _supabase.rpc(
+        'mark_messages_read',
+        params: {'p_chat_id': chatId, 'p_reader_id': myId},
+      );
+    } catch (e) {
+      debugPrint('NotificationService: mark_messages_read error: $e');
+    }
+    unreadCountNotifier.value = 0;
   }
 
   /// تنظيف الموارد عند الخروج

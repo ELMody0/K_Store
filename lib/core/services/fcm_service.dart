@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -49,6 +50,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class FcmService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  StreamSubscription<String>? _tokenSub;
+
   Future<void> init() async {
     final messaging = FirebaseMessaging.instance;
 
@@ -70,7 +73,9 @@ class FcmService {
     final token = await messaging.getToken();
     if (token != null) await _saveToken(token);
 
-    messaging.onTokenRefresh.listen((token) => _saveToken(token));
+    // نلغي أي اشتراك قديم قبل ما نضيف جديد عشان مفيش leak
+    await _tokenSub?.cancel();
+    _tokenSub = messaging.onTokenRefresh.listen((token) => _saveToken(token));
 
     // فورغراوند: عرض إشعار محلي عند وصول رسالة
     FirebaseMessaging.onMessage.listen(_showLocalNotification);

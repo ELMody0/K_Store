@@ -175,25 +175,46 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
 
   // ---- حذف الرسالة ----
   Future<void> _deleteMessage(String messageId) async {
+    // نتأكد إن المستخدم صاحب الرسالة أو مالك قبل الحذف (منع حذف رسايل الغير)
+    final myId = _supabase.auth.currentUser?.id;
+    if (myId == null) return;
+    String? ownerId;
+    try {
+      final msg = await _supabase.from('messages').select('sender_id').eq('id', messageId).maybeSingle();
+      ownerId = msg?['sender_id']?.toString();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذّر حذف الرسالة: $e')));
+      }
+      return;
+    }
+    final canDelete = ownerId == myId || _currentUserRole == 'owner';
+    if (!canDelete) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا يمكنك حذف رسالة لا تملكها')));
+      }
+      return;
+    }
+    if (!mounted) return;
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.darkGrey,
         title: const Text('حذف الرسالة؟', style: TextStyle(color: Colors.white)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
           TextButton(
             onPressed: () async {
               try {
                 await _supabase.from('messages').delete().eq('id', messageId);
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف الرسالة')));
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('تم حذف الرسالة')));
                 }
               } catch (e) {
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذّر حذف الرسالة: $e')));
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('تعذّر حذف الرسالة: $e')));
                 }
               }
             },

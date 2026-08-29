@@ -21,7 +21,7 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   void _navigateToNext() async {
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted) return;
 
     // فحص التحديث التلقائي عند فتح التطبيق
