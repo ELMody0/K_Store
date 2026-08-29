@@ -18,6 +18,7 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   String _searchQuery = '';
   late final Stream<List<Map<String, dynamic>>> _usersStream;
+  String? _currentUserRole;
 
   final Map<String, String> _pendingRoleUpdates = {};
   final Map<String, bool> _pendingVerificationUpdates = {};
@@ -26,9 +27,24 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
   void initState() {
     super.initState();
     _usersStream = _supabase.from('profiles').stream(primaryKey: ['id']).order('full_name');
+    _loadCurrentRole();
+  }
+
+  Future<void> _loadCurrentRole() async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return;
+    try {
+      final data = await _supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
+      if (mounted) setState(() => _currentUserRole = data?['role']?.toString().toLowerCase());
+    } catch (_) {}
   }
 
   Future<void> _updateUserRole(String userId, String newRole) async {
+    // حماية: نتأكد إن المستخدم الحالي مالك قبل تغيير الرتب (منع تصعيد الصلاحيات)
+    if (_currentUserRole != 'owner') {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('غير مصرّح لك بتغيير الرتب')));
+      return;
+    }
     setState(() => _pendingRoleUpdates[userId] = newRole);
     try {
       await _supabase.from('profiles').update({'role': newRole}).eq('id', userId);
@@ -40,6 +56,10 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
   }
 
   Future<void> _toggleVerification(String userId, bool currentStatus) async {
+    if (_currentUserRole != 'owner') {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('غير مصرّح لك بتوثيق الحسابات')));
+      return;
+    }
     setState(() => _pendingVerificationUpdates[userId] = !currentStatus);
     try {
       await _supabase.from('profiles').update({'is_verified': !currentStatus}).eq('id', userId);

@@ -77,8 +77,13 @@ curl -s -X POST "%SUPABASE_URL%/rest/v1/app_updates" ^
   -H "Prefer: return=minimal" ^
   --data-binary "@update_row.json"
 
-echo [4/5] Updating update.json on Supabase Storage...
-REM (update.json already written by build_json.ps1 above)
+echo [4/5] Uploading update.json to Supabase Storage...
+curl -s -X POST "%SUPABASE_URL%/storage/v1/object/%SUPABASE_BUCKET%/update.json" ^
+  -H "Authorization: Bearer %SUPABASE_SERVICE_KEY%" ^
+  -H "apikey: %SUPABASE_SERVICE_KEY%" ^
+  -H "Content-Type: application/json" ^
+  -H "x-upsert: true" ^
+  --data-binary "@update.json"
 
 echo [5/5] Bumping pubspec version + committing code...
 powershell -NoProfile -Command ^

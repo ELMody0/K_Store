@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:k_store/core/theme/app_theme.dart';
 import 'package:k_store/core/widgets/wavy_background.dart';
@@ -18,14 +19,86 @@ class _PanelItem {
   const _PanelItem(this.icon, this.title, this.c1, this.c2, this.page);
 }
 
-class OwnerPanel extends StatelessWidget {
+class OwnerPanel extends StatefulWidget {
   const OwnerPanel({super.key});
+
+  @override
+  State<OwnerPanel> createState() => _OwnerPanelState();
+}
+
+class _OwnerPanelState extends State<OwnerPanel> {
+  final SupabaseClient _supabase = Supabase.instance.client;
+  bool _isLoading = true;
+  bool _isOwner = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOwner();
+  }
+
+  Future<void> _checkOwner() async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    try {
+      final data = await _supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
+      if (mounted) setState(() => _isOwner = data?['role']?.toString().toLowerCase() == 'owner');
+    } catch (_) {
+      if (mounted) setState(() => _isOwner = false);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final surfaceColor = isDark ? AppColors.darkGrey : Colors.white;
+
+    // حماية: لو لسه بيلوّد أو مش owner نمنع الوصول للوحة
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (!_isOwner) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: const Text('لوحة التحكم', style: TextStyle(fontWeight: FontWeight.bold)),
+          centerTitle: true,
+          backgroundColor: Colors.transparent,
+          foregroundColor: textColor,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: WavyBackground(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.lock_outline_rounded, size: 56, color: textColor.withValues(alpha: 0.3)),
+                  const SizedBox(height: 20),
+                  Text('غير مصرّح بالدخول', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: textColor)),
+                  const SizedBox(height: 8),
+                  Text('هذه الصفحة مخصصة للمالك فقط.', style: TextStyle(fontSize: 13, color: textColor.withValues(alpha: 0.5)), textAlign: TextAlign.center),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     final items = [
       _PanelItem(Icons.people_alt_rounded, 'المستخدمين', const Color(0xFF1DA1F2), const Color(0xFF6DD5FA), const UsersManagementPage()),

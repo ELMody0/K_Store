@@ -123,6 +123,14 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
   }
 
   Future<void> _deleteProduct() async {
+    // حماية: نتأكد إن المستخدم صاحب المنتج أو مالك قبل الحذف (منع حذف منتجات الغير)
+    final myId = _supabase.auth.currentUser?.id;
+    final isOwnerRole = _userRole == 'owner';
+    final isProductOwner = myId != null && myId == widget.product['user_id'];
+    if (!isProductOwner && !isOwnerRole) {
+      if (mounted) AppSnackBar.show(context, 'لا يمكنك حذف منتج لا تملكه', error: true);
+      return;
+    }
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
