@@ -2,7 +2,7 @@
 description: "K Shop Application"
 publish_to: 'none'
 
-version: 1.0.4+1
+version: 1.0.5+1
 
 environment:
   sdk: ^3.13.0
