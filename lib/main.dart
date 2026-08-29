@@ -107,10 +107,10 @@ class MyApp extends StatelessWidget {
           title: 'K Shop',
           debugShowCheckedModeBanner: false,
           navigatorKey: navigatorKey,
-          locale: const Locale('ar'),
+          locale: const Locale('en'),
           supportedLocales: const [
-            Locale('ar'),
             Locale('en'),
+            Locale('ar'),
           ],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,

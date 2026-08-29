@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:k_store/core/widgets/wavy_background.dart';
 import 'package:k_store/core/theme/app_theme.dart';
@@ -30,6 +31,16 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
   StreamSubscription<List<Map<String, dynamic>>>? _sub;
   Timer? _errorTimer;
   String? _expandedId;
+
+  // يرجّع رقم إصدار الأبلكيشن الحالي (مثل 1.0.4) عشان يتكتب في التحديث
+  Future<String> _currentVersionString() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return info.version;
+    } catch (_) {
+      return '';
+    }
+  }
 
   @override
   void initState() {
@@ -284,7 +295,7 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
     if (title.isEmpty) return;
     try {
       if (existing == null) {
-        await _supabase.from('app_updates').insert({'title': title, 'body': body, 'created_by': _supabase.auth.currentUser?.id});
+        await _supabase.from('app_updates').insert({'title': title, 'body': body, 'version': _currentVersionString(), 'created_by': _supabase.auth.currentUser?.id});
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: const Text('✅ تم نشر التحديث'), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
@@ -528,10 +539,12 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
                     color: isLatest ? iconColor : iconColor.withValues(alpha: 0.5),
                   ),
                   const SizedBox(width: 12),
-                  // العنوان
+                  // العنوان: نعرض رقم الإصدار (الأهم للمستخدم) وإلا العنوان المحفوظ
                   Expanded(
                     child: Text(
-                      u['title'] ?? '',
+                      (u['version'] ?? '').toString().isNotEmpty
+                          ? 'تحديث ${u['version']}'
+                          : (u['title'] ?? ''),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -560,20 +573,6 @@ class _AppUpdatesPageState extends State<AppUpdatesPage> {
                             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.white),
                           ),
                         ],
-                      ),
-                    ),
-                  // شارة رقم الإصدار
-                  if ((u['version'] ?? '').toString().isNotEmpty)
-                    Container(
-                      margin: const EdgeInsetsDirectional.only(start: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFF1A1A1A),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'v${u['version']}',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.white),
                       ),
                     ),
                   // أزرار المالك
